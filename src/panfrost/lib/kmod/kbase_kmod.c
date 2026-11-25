@@ -2782,8 +2782,10 @@ pan_kmod_kbase_csf_submit(struct pan_kmod_kbase_csf_group *g,
          u_foreach_bit(w, wait_mask) {
             kbase_csf_emit(r, cs_ins(CS_OP_MOVE48, (A << 48) | (g->seq_va + w * 64)));
             kbase_csf_emit(r, cs_ins(CS_OP_MOVE48, (V << 48) | (wait_target[w] - 1)));
-            kbase_csf_emit(r, cs_ins(CS_OP_SYNC_WAIT64, (A << 40) | (V << 32) | (1u << 28)));
-         }
+            /* Sequence cells are in this group CSF_EVENT allocation. */
+            /* Use CSG shareability, matching the SYNC_ADD64 signals below. */
+            kbase_csf_emit(r, cs_ins(CS_OP_SYNC_WAIT64,
+                                     (A << 40) | (V << 32) | (2u << 1) | (1u << 28)));
       }
    }
 

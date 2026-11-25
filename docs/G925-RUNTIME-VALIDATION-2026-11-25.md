@@ -48,6 +48,25 @@ The corresponding Android log also contains `GROUP_ERROR_FATAL` for CSF groups 0
 5. No FPS comparison is valid. The attempts were diagnostic reproductions, not completed benchmark runs; each condition must be repeated after a stable workload is found.
 6. The Android factory/system driver was not replaced, no root operations were performed, and the existing `Container-1` was not modified to use PanVK.
 
+## CSF SYNC_WAIT scope finding and candidate fix
+
+The device log reports GROUP_ERROR_FATAL with status 0x24c00488 and exception 0x88. The low status byte matches the SHAREABILITY_FAULT signature discussed in https://github.com/MineGraph-bilibili/panvk-Android/issues/3, whose analysis associates 0x88 with a shareability fault and status bits [15:8] = 0x04 with an atomic access. That report concerns a different Mali generation and kernel, so it is a diagnostic lead, not proof of the G925 root cause.
+
+Source inspection of this fork found a matching encoding gap:
+
+- CS SYNC_ADD32/64 and CS SYNC_SET32/64 describe the Scope field at bits 2:1, but CS SYNC_WAIT32/64 omitted it in genxml v10 through v14.
+- The shared cs_sync32/64_wait() builder helper did not accept or write a scope.
+- PanVK waits on same-group subqueue sequence/sync cells and the kbase ring wait on its CSF_EVENT sequence cells are intra-group operations; their producer signals use CSG scope.
+- The pandecode output did not expose a wait's scope, making this class of issue harder to inspect.
+
+A candidate correction is now in the working tree:
+
+1. Add the missing Scope field to SYNC_WAIT32/64 for genxml v10-v14.
+2. Thread an explicit scope through the CS builder and PanVK instrumentation wrapper.
+3. Emit MALI_CS_SYNC_SCOPE_CSG for the three internal same-group wait call paths and encode CSG (2 << 1) in the raw kbase ring wait.
+4. Print .csg or .system in the CSF decoder for wait instructions.
+
+The Android arm64 build completed successfully after these changes (all five architecture variants and libvulkan_panfrost.so linked). This is NOT yet a confirmed runtime fix: the updated package has not been installed and exercised on the Tab S11. The cited investigation also reports that adding the missing scope was a real bug but did not eliminate every 0x88 fault on its device.
 ## Next validation steps
 
 1. Reproduce the System control with a minimal Vulkan workload that reports each `VkResult` instead of asserting, and confirm whether the failure is specific to queue submit, present, or teardown.

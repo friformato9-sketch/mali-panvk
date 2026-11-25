@@ -74,6 +74,9 @@ Runtime switch: `PANVK_DEBUG=perf`.
 
 See [`G925-RUNTIME-VALIDATION-2026-11-25.md`](G925-RUNTIME-VALIDATION-2026-11-25.md) for the first SM-X730 runtime attempts. PanVK custom-library loading is confirmed; both PanVK and the separate System-driver AIO attempts hit CSF group faults, so no valid FPS comparison or PanVK-specific root cause has been established yet.
 
+## CSF synchronization correctness investigation
+
+The first physical G925 run exposed GROUP_ERROR_FATAL / exception 0x88. Source review found missing Scope metadata and emission on SYNC_WAIT32/64 in the CSF path. A candidate CSG-scope correction is implemented in the current branch worktree and builds successfully; see [G925-RUNTIME-VALIDATION-2026-11-25.md](G925-RUNTIME-VALIDATION-2026-11-25.md). Do not treat it as a confirmed fix until the rebuilt package is tested on the physical SM-X730 with the same workload and fault logs are rechecked.
 ## Status
 
 - [x] Add opt-in kbase submit diagnostics.

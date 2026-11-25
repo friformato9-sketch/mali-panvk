@@ -575,7 +575,9 @@ print_cs_instr(FILE *fp, const uint64_t *instr)
 
    case MALI_CS_OPCODE_SYNC_WAIT32: {
       cs_unpack(instr, CS_SYNC_WAIT32, I);
-      fprintf(fp, "SYNC_WAIT32%s%s d%u, r%u", conditions_str[I.condition],
+      fprintf(fp, "SYNC_WAIT32%s%s%s d%u, r%u",
+              I.scope == MALI_CS_SYNC_SCOPE_CSG ? ".csg" : ".system",
+              conditions_str[I.condition],
               I.error_reject ? ".reject" : ".inherit", I.address, I.data);
       break;
    }
@@ -668,7 +670,9 @@ print_cs_instr(FILE *fp, const uint64_t *instr)
    case MALI_CS_OPCODE_SYNC_WAIT64: {
       cs_unpack(instr, CS_SYNC_WAIT64, I);
 
-      fprintf(fp, "SYNC_WAIT64%s%s d%u, d%u", conditions_str[I.condition],
+      fprintf(fp, "SYNC_WAIT64%s%s%s d%u, d%u",
+              I.scope == MALI_CS_SYNC_SCOPE_CSG ? ".csg" : ".system",
+              conditions_str[I.condition],
               I.error_reject ? ".reject" : ".inherit", I.address, I.data);
       break;
    }
