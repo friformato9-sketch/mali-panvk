@@ -67,6 +67,15 @@ A candidate correction is now in the working tree:
 4. Print .csg or .system in the CSF decoder for wait instructions.
 
 The Android arm64 build completed successfully after these changes (all five architecture variants and libvulkan_panfrost.so linked). This is NOT yet a confirmed runtime fix: the updated package has not been installed and exercised on the Tab S11. The cited investigation also reports that adding the missing scope was a real bug but did not eliminate every 0x88 fault on its device.
+## Controlled AIO A/B validation (2026-11-25)
+
+A three-run AIO Vulkan cube A/B was completed on the physical SM-X730. Winlator has separate Renderer Driver and Vulkan Driver selectors; both were verified as System for the control and both as cdb8aa7 for PanVK. All runs used the same 1280x720 guest desktop and the same AIO arguments.
+
+See [G925-AIO-AB-2026-11-25.md](G925-AIO-AB-2026-11-25.md) for raw values and limitations. Three-run means were 994.97 FPS / 254.10 1% low for System and 1,813.84 FPS / 430.05 1% low for PanVK (+82.3% average FPS, +69.2% 1% low in this synthetic workload).
+
+Across the three valid cdb8aa7 PanVK logs, the loader opened the new libvulkan_panfrost.so; filtered logs contained no GROUP_ERROR_FATAL, 0x24c00488 / 0x88, SHAREABILITY_FAULT, VK_ERROR, or AIO assertion. This is encouraging runtime evidence for the CSG-scoped SYNC_WAIT candidate, but not a universal correctness proof or a real-game uplift claim.
+
+An earlier mixed-driver benchmark (Renderer cdb8aa7, guest Vulkan a4b8b6b) was excluded from the A/B. PANVK_DEBUG=perf was not yet enabled, so the queue-submit timings needed for roadmap point 1 remain to be collected. BannerHub remains the next application-level validation target.
 ## Next validation steps
 
 1. Reproduce the System control with a minimal Vulkan workload that reports each `VkResult` instead of asserting, and confirm whether the failure is specific to queue submit, present, or teardown.

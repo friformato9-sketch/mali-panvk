@@ -77,6 +77,11 @@ See [`G925-RUNTIME-VALIDATION-2026-11-25.md`](G925-RUNTIME-VALIDATION-2026-11-25
 ## CSF synchronization correctness investigation
 
 The first physical G925 run exposed GROUP_ERROR_FATAL / exception 0x88. Source review found missing Scope metadata and emission on SYNC_WAIT32/64 in the CSF path. A candidate CSG-scope correction is implemented in the current branch worktree and builds successfully; see [G925-RUNTIME-VALIDATION-2026-11-25.md](G925-RUNTIME-VALIDATION-2026-11-25.md). Do not treat it as a confirmed fix until the rebuilt package is tested on the physical SM-X730 with the same workload and fault logs are rechecked.
+## Physical G925 AIO A/B checkpoint (2026-11-25)
+
+Three AIO Vulkan cube runs per driver were completed with the Winlator Renderer Driver and guest Vulkan Driver both verified on each condition. PanVK cdb8aa7 averaged 1,813.84 FPS versus 994.97 FPS on System (+82.3% in this synthetic benchmark); 1% low averaged 430.05 versus 254.10 (+69.2%). The three valid PanVK logs showed no recurrence of the earlier CSF 0x88 fault. Raw results and limitations are in [G925-AIO-AB-2026-11-25.md](G925-AIO-AB-2026-11-25.md).
+
+This is not a BannerHub/game FPS claim. Point 1 is still open: enable and collect PANVK_DEBUG=perf submit telemetry, then validate the same workloads in BannerHub and inspect Mali-native queue overlap.
 ## Status
 
 - [x] Add opt-in kbase submit diagnostics.
