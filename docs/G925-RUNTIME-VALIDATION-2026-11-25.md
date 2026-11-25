@@ -41,12 +41,12 @@ The corresponding Android log also contains `GROUP_ERROR_FATAL` for CSF groups 0
 
 ## Interpretation and limitations
 
-1. The custom PanVK library is demonstrably loaded by Winlator's custom-driver hook on this physical G925 device.
-2. The PanVK AIO run did not produce a valid benchmark result and reported CSF group faults.
-3. The separate System-driver AIO run also reached Vulkan rendering, then failed in `vkQueueSubmit` and logged CSF group faults.
-4. Therefore, this AIO/Winlator test currently does **not** isolate a PanVK-specific regression. It may be exposing a problem in the test's submission/present sequence, the Winlator environment, the device/kernel CSF path, or an interaction between them. More instrumentation is required before assigning root cause.
-5. No FPS comparison is valid. The attempts were diagnostic reproductions, not completed benchmark runs; each condition must be repeated after a stable workload is found.
-6. The Android factory/system driver was not replaced, no root operations were performed, and the existing `Container-1` was not modified to use PanVK.
+1. The initial PanVK attempt with the earlier a4b8b6b package loaded the custom ICD but failed with CSF group faults and produced no benchmark result.
+2. The initial System-driver control attempt also failed in AIO's vkQueueSubmit path and logged CSF group faults. Those first attempts did not isolate a PanVK-specific regression.
+3. After the SYNC_WAIT scope changes were built as cdb8aa7, a controlled AIO A/B completed three runs per driver with both Winlator Renderer Driver and guest Vulkan Driver verified as System or cdb8aa7 for the corresponding condition. See the controlled A/B section and G925-AIO-AB-2026-11-25.md.
+4. The three valid cdb8aa7 runs completed and their captured log windows contained no matches for the prior GROUP_ERROR_FATAL / 0x24c00488 fault signatures, VK_ERROR, SHAREABILITY_FAULT, or an AIO assertion. This is encouraging evidence for the tested submission path, not a universal synchronization-correctness proof.
+5. The benchmark is a synthetic Vulkan cube workload. Its relative FPS difference must not be presented as a BannerHub or real-game uplift. Vulkan CTS and application-level testing remain outstanding.
+6. The Android factory/system driver was not replaced and no root operations were used. Container-1 remains the System control; PanVK_G925_Test is the custom-driver test container.
 
 ## CSF SYNC_WAIT scope finding and candidate fix
 
@@ -66,7 +66,7 @@ A candidate correction is now in the working tree:
 3. Emit MALI_CS_SYNC_SCOPE_CSG for the three internal same-group wait call paths and encode CSG (2 << 1) in the raw kbase ring wait.
 4. Print .csg or .system in the CSF decoder for wait instructions.
 
-The Android arm64 build completed successfully after these changes (all five architecture variants and libvulkan_panfrost.so linked). This is NOT yet a confirmed runtime fix: the updated package has not been installed and exercised on the Tab S11. The cited investigation also reports that adding the missing scope was a real bug but did not eliminate every 0x88 fault on its device.
+The Android arm64 build completed successfully after these changes (all five architecture variants and libvulkan_panfrost.so linked). The cdb8aa7 package was subsequently installed and exercised on the physical SM-X730 in a three-run AIO A/B; all three valid PanVK runs completed without the previously observed 0x88 / GROUP_ERROR_FATAL signatures in the captured log windows. This supports the candidate correction for the tested workload, but does not prove every CSF synchronization path is correct. The cited investigation also reports that adding the missing scope was a real bug but did not eliminate every 0x88 fault on its device.
 ## Controlled AIO A/B validation (2026-11-25)
 
 A three-run AIO Vulkan cube A/B was completed on the physical SM-X730. Winlator has separate Renderer Driver and Vulkan Driver selectors; both were verified as System for the control and both as cdb8aa7 for PanVK. All runs used the same 1280x720 guest desktop and the same AIO arguments.
@@ -78,10 +78,11 @@ Across the three valid cdb8aa7 PanVK logs, the loader opened the new libvulkan_p
 An earlier mixed-driver benchmark (Renderer cdb8aa7, guest Vulkan a4b8b6b) was excluded from the A/B. PANVK_DEBUG=perf was not yet enabled, so the queue-submit timings needed for roadmap point 1 remain to be collected. BannerHub remains the next application-level validation target.
 ## Next validation steps
 
-1. Reproduce the System control with a minimal Vulkan workload that reports each `VkResult` instead of asserting, and confirm whether the failure is specific to queue submit, present, or teardown.
-2. Run the same workload from `PanVK_G925_Test`, collecting the exact Vulkan result and kbase group-fault logs.
-3. Enable `PANVK_DEBUG=perf` through a verified process environment path; do not substitute Turnip's `TU_DEBUG` variables.
-4. Only after a stable Vulkan workload completes on both drivers, collect repeated performance measurements and return to BannerHub.
+1. Enable PANVK_DEBUG=perf in the PanVK test shortcut process environment and verify PANVK_PERF records appear; do not substitute Turnip's TU_DEBUG variables.
+2. Capture repeated PanVK submit logs and classify preparation time, kbase submit duration, CPU semaphore fallback waits, per-queue call counts and stream bytes.
+3. Run the same fixed BannerHub scene on Container-1 (System) and PanVK_G925_Test, recording frame pacing and at least three runs per condition.
+4. Use Android Perfetto and, where available, Mali G925 queue/MCU/memory counters to assess vertex/tiler, fragment and compute overlap.
+5. Test G925 HSR prepass as a separate A/B experiment only after the baseline and submit telemetry are captured.
 
 ## Safety and reproducibility
 
