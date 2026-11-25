@@ -1,0 +1,14 @@
+{
+  "C_Cpp.default.configurationProvider": "ms-vscode.cmake-tools",
+  "files.associations": {
+    "*.inc": "c",
+    "*.cl": "opencl",
+    "*.h": "c"
+  },
+  "editor.formatOnSave": false,
+  "search.exclude": {
+    "**/build-android/**": true,
+    "**/build-host/**": true,
+    "**/subprojects/**": true
+  }
+}
