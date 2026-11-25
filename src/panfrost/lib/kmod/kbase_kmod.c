@@ -2786,6 +2786,7 @@ pan_kmod_kbase_csf_submit(struct pan_kmod_kbase_csf_group *g,
             /* Use CSG shareability, matching the SYNC_ADD64 signals below. */
             kbase_csf_emit(r, cs_ins(CS_OP_SYNC_WAIT64,
                                      (A << 40) | (V << 32) | (2u << 1) | (1u << 28)));
+          }
       }
    }
 
