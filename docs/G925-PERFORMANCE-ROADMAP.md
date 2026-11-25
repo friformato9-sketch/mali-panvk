@@ -70,6 +70,10 @@ Runtime switch: `PANVK_DEBUG=perf`.
 5. Compare baseline versus `PANVK_DEBUG=perf`, then baseline versus `PANVK_DEBUG=hsr_prepass` as a separate A/B experiment. Do not combine flags when attributing an FPS change.
 6. Only change behavior after a repeatable bottleneck is identified. Preserve the untouched system driver and a known-good PanVK ZIP for rollback.
 
+## Latest physical-device validation
+
+See [`G925-RUNTIME-VALIDATION-2026-11-25.md`](G925-RUNTIME-VALIDATION-2026-11-25.md) for the first SM-X730 runtime attempts. PanVK custom-library loading is confirmed; both PanVK and the separate System-driver AIO attempts hit CSF group faults, so no valid FPS comparison or PanVK-specific root cause has been established yet.
+
 ## Status
 
 - [x] Add opt-in kbase submit diagnostics.
