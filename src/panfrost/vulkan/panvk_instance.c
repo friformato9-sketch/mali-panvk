@@ -56,6 +56,7 @@ static const struct debug_control panvk_debug_options[] = {
    {"no_extended_va_range", PANVK_DEBUG_NO_EXTENDED_VA_RANGE},
    {"hsr_prepass", PANVK_DEBUG_HSR_PREPASS},
    {"no_crc", PANVK_DEBUG_NO_CRC},
+   {"perf", PANVK_DEBUG_PERF},
    {NULL, 0},
 };
 

@@ -24,6 +24,7 @@
 
 #include "util/bitscan.h"
 #include "util/log.h"
+#include "util/os_time.h"
 #include "vk_drm_syncobj.h"
 #include "vk_log.h"
 
@@ -1541,6 +1542,10 @@ static VkResult
 panvk_queue_submit_kbase(struct panvk_gpu_queue *queue, struct vk_queue_submit *vk_submit)
 {
    struct panvk_device *dev = to_panvk_device(queue->vk.base.device);
+   const bool perf_enabled = PANVK_DEBUG(PERF);
+   const uint64_t perf_start_ns = perf_enabled ? os_time_get_nano() : 0;
+   uint64_t cpu_wait_ns = 0;
+   bool cpu_wait_fallback = false;
 
    if (queue->kbase_lost || pan_kmod_kbase_csf_group_faulted(queue->kbase_group))
       return vk_queue_set_lost(&queue->vk, "kbase: the queue group faulted");
@@ -1571,9 +1576,14 @@ panvk_queue_submit_kbase(struct panvk_gpu_queue *queue, struct vk_queue_submit *
 
       /* Signaled by our own earlier submissions: the rings wait for them on the GPU. */
       if (!pan_kmod_kbase_sync_csf_wait_seq(waits, vk_submit->wait_count, queue->kbase_group,
-                                            &wait_seq))
+                                            &wait_seq)) {
+         cpu_wait_fallback = true;
+         const uint64_t wait_start_ns = perf_enabled ? os_time_get_nano() : 0;
          dev->vk.sync->wait(dev->vk.sync, waits, vk_submit->wait_count, INT64_MAX,
                             DRM_SYNCOBJ_WAIT_FLAGS_WAIT_ALL, NULL);
+         if (perf_enabled)
+            cpu_wait_ns = os_time_get_nano() - wait_start_ns;
+      }
    }
 
    /* Linear images of emulated BC formats first, from what the host may have written into them
@@ -1600,6 +1610,8 @@ panvk_queue_submit_kbase(struct panvk_gpu_queue *queue, struct vk_queue_submit *
       return vk_queue_set_lost(&queue->vk, "out of memory submitting");
    }
    unsigned nr_calls = 0;
+   uint32_t calls_per_subqueue[PANVK_SUBQUEUE_COUNT] = {0};
+   uint64_t bytes_per_subqueue[PANVK_SUBQUEUE_COUNT] = {0};
 
    /* Resources a subqueue has not asked the firmware for yet come first. */
    for (uint32_t i = 0; i < nr_cmdbufs; i++) {
@@ -1614,6 +1626,10 @@ panvk_queue_submit_kbase(struct panvk_gpu_queue *queue, struct vk_queue_submit *
             .size = subq->req_resource.cs_buffer_size,
             .addr = subq->req_resource.cs_buffer_addr,
          };
+         if (perf_enabled) {
+            calls_per_subqueue[j]++;
+            bytes_per_subqueue[j] += subq->req_resource.cs_buffer_size;
+         }
          subq->req_resource.mask = get_resource_mask(j);
       }
    }
@@ -1630,6 +1646,10 @@ panvk_queue_submit_kbase(struct panvk_gpu_queue *queue, struct vk_queue_submit *
             .size = cs_root_chunk_size(b),
             .addr = cs_root_chunk_gpu_addr(b),
          };
+         if (perf_enabled) {
+            calls_per_subqueue[j]++;
+            bytes_per_subqueue[j] += cs_root_chunk_size(b);
+         }
       }
    }
 
@@ -1642,10 +1662,14 @@ panvk_queue_submit_kbase(struct panvk_gpu_queue *queue, struct vk_queue_submit *
    pan_kmod_kbase_sync_submitted(d->signals, d->nr_signals);
    pan_kmod_flush_bo_map_syncs(dev->kmod.dev);
 
+   const uint64_t submit_start_ns = perf_enabled ? os_time_get_nano() : 0;
    const uint64_t seq =
       pan_kmod_kbase_csf_submit(queue->kbase_group, calls, nr_calls,
                                 BITFIELD_MASK(PANVK_SUBQUEUE_COUNT), wait_seq,
                                 panvk_kbase_csf_done, d);
+   const uint64_t submit_ns = perf_enabled
+                                 ? os_time_get_nano() - submit_start_ns
+                                 : 0;
    free(calls);
    if (refresh)
       panvk_per_arch(bc_emu_refresh_end)(dev, refresh, queue->kbase_group, seq);
@@ -1653,6 +1677,25 @@ panvk_queue_submit_kbase(struct panvk_gpu_queue *queue, struct vk_queue_submit *
       /* Signal anyway, so nothing waits forever on work that was never sent. */
       panvk_kbase_csf_done(d, false);
       return vk_queue_set_lost(&queue->vk, "kbase: the submission was refused");
+   }
+
+   if (perf_enabled) {
+      const uint64_t prepare_ns = submit_start_ns - perf_start_ns;
+      mesa_logi("PANVK_PERF kbase-csf seq=%" PRIu64
+                " wait_seq=%" PRIu64 " prepare=%" PRIu64 "us submit=%" PRIu64
+                "us cpu_wait=%" PRIu64 "us cpu_wait_fallback=%u"
+                " waits=%u signals=%u cmdbufs=%u refresh=%u calls=%u"
+                " vt=%u/%" PRIu64 "B frag=%u/%" PRIu64
+                "B compute=%u/%" PRIu64 "B",
+                seq, wait_seq, prepare_ns / 1000, submit_ns / 1000, cpu_wait_ns / 1000,
+                cpu_wait_fallback, vk_submit->wait_count, vk_submit->signal_count,
+                vk_submit->command_buffer_count, refresh != NULL, nr_calls,
+                calls_per_subqueue[PANVK_SUBQUEUE_VERTEX_TILER],
+                bytes_per_subqueue[PANVK_SUBQUEUE_VERTEX_TILER],
+                calls_per_subqueue[PANVK_SUBQUEUE_FRAGMENT],
+                bytes_per_subqueue[PANVK_SUBQUEUE_FRAGMENT],
+                calls_per_subqueue[PANVK_SUBQUEUE_COMPUTE],
+                bytes_per_subqueue[PANVK_SUBQUEUE_COMPUTE]);
    }
 
    /* A sync file for what this submission signals, so exporting one (a present, a fence fd)

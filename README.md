@@ -113,6 +113,7 @@ it, and writes a package to `dist/`: a zip with `meta.json`, `libvulkan_panfrost
 | Environment | Effect |
 |---|---|
 | `PANVK_DEBUG=startup` | logs why the device could not be created |
+| `PANVK_DEBUG=perf` | logs kbase CSF submit preparation/wait time and per-subqueue command-stream counts/bytes; does not force GPU synchronization |
 | `PANVK_FORCE_IDVS=1` | turns index-driven vertex shading back on (off by default on Bifrost) |
 | `PANVK_NO_MEDIUMP=1` | compiles `mediump` shader code at 32 bits |
 | `MESA_SHADER_CACHE_DISABLE=true` | turns the disk shader cache off |
