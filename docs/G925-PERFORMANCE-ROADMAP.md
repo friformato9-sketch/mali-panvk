@@ -13,7 +13,7 @@ The goal is to improve real game frame time and frame pacing without weakening V
 
 PanVK creates three CSF subqueues: vertex/tiler (binning), fragment (main rendering), and compute. The kbase submit path maps command-buffer streams onto those queues. When a semaphore wait cannot be associated with a prior submission in the same kbase CSF group, PanVK falls back to a CPU-side wait on all syncobjs. That can stall the application thread before subsequent work is submitted.
 
-The submission path also allocates and assembles kbase CS-call arrays and signals completion for the three subqueues. These are correctness-sensitive mechanisms. First measure CPU fallback wait time, command stream count/bytes per subqueue, CPU preparation time and kbase submit-call latency; then correlate with GPU queue-overlap traces. Do not remove waits or alter completion semantics without an A/B correctness test.
+The submission path also allocates and assembles kbase CS-call arrays and signals completion for the three subqueues. These are correctness-sensitive mechanisms. The first physical AIO diagnostic set now measures CPU fallback waits, command-stream count/bytes per subqueue, CPU preparation time and kbase submit latency. Across three diagnostic runs (80,353 main-process records), mean prepare was 3.878 us and mean kbase submit was 6.049 us; no CPU semaphore-wait fallback was observed. A correlated Perfetto trace adds Vulkan QueueSubmit API spans and a sampled GPU-frequency counter, but this Android build exposes no Mali render-stage / hardware queue slices. These are host-side findings only; do not infer actual engine overlap. Do not remove waits or alter completion semantics without an A/B correctness test.
 
 ### 2. G925 HSR prepass and Z/S tile interleaving
 
@@ -65,18 +65,18 @@ Runtime switch: `PANVK_DEBUG=perf`.
 
 1. Keep the factory/system driver intact. Use the custom PanVK package only through the existing custom-driver loader with a reversible selection.
 2. Pick a fixed BannerHub scene, resolution, graphics settings and frame-rate cap. Record at least three runs per configuration; discard first-run shader-cache warm-up from steady-state comparison and also record it separately.
-3. Capture CPU/GPU timeline with Android Perfetto. Inspect binning, fragment and compute queue overlap; sync waits; cache flushes; CPU submission gaps.
+3. Capture CPU/API timeline with Android Perfetto. Inspect QueueSubmit spans, scheduler state, frequency and CPU submission gaps. Hardware binning/fragment/compute overlap requires a device-supported Mali render-stage producer; the current Android build does not expose one.
 4. Where available, correlate with G925 counters: queue-active cycles, GPU-active cycles, interrupt-pending cycles, MCU-active cycles and external-memory read/write stalls.
 5. Compare baseline versus `PANVK_DEBUG=perf`, then baseline versus `PANVK_DEBUG=hsr_prepass` as a separate A/B experiment. Do not combine flags when attributing an FPS change.
 6. Only change behavior after a repeatable bottleneck is identified. Preserve the untouched system driver and a known-good PanVK ZIP for rollback.
 
 ## Latest physical-device validation
 
-Three AIO Vulkan cube runs per driver were completed with Winlator's Renderer Driver and guest Vulkan Driver both verified on each condition. PanVK cdb8aa7 averaged 1,813.84 FPS versus 994.97 FPS on System (+82.3% in this synthetic benchmark); 1% low averaged 430.05 versus 254.10 (+69.2%). The valid PanVK captures showed no recurrence of the earlier CSF 0x88 fault. Raw run values, driver identity and limitations are in [G925-AIO-AB-2026-11-25.md](G925-AIO-AB-2026-11-25.md).
+Three AIO Vulkan cube runs per driver were completed with Winlator's Renderer Driver and guest Vulkan Driver both verified on each condition. PanVK cdb8aa7 averaged 1,813.84 FPS versus 994.97 FPS on System (+82.3% in this synthetic benchmark); 1% low averaged 430.05 versus 254.10 (+69.2%). The valid PanVK captures showed no recurrence of the earlier CSF 0x88 fault. Raw run values and driver identity are in [G925-AIO-AB-2026-11-25.md](G925-AIO-AB-2026-11-25.md).
 
-A first PANVK_DEBUG=perf capture has now been collected on the PanVK AIO shortcut. It contains 27,855 main-process records over 20.257 seconds, with mean CPU prepare 3.881 us, mean kbase submit 5.765 us, and zero CPU fallback wait events. The 15-second AIO run completed at 1,860.72 FPS / 442.70 1% low. See [G925-PANVK-PERF-2026-11-25.md](G925-PANVK-PERF-2026-11-25.md) for stream counts, percentiles, hashes and limitations.
+Three diagnostic-enabled AIO runs produced 80,353 main-process PANVK_PERF records. Weighted mean CPU prepare was 3.878 us and mean kbase submit was 6.049 us; no CPU semaphore-wait fallback or captured CSF/Vulkan fault signature was observed. A fourth run was correlated with Perfetto: 20,909 Vulkan QueueSubmit slices averaged 24.631 us (P95 75.077 us), and the trace contained a sampled gpufreq counter. It did not contain Mali render-stage or hardware engine slices. See [G925-PANVK-PERF-2026-11-25.md](G925-PANVK-PERF-2026-11-25.md) and [G925-PERFETTO-2026-11-25.md](G925-PERFETTO-2026-11-25.md).
 
-Neither AIO result is a BannerHub/game FPS claim or a Vulkan CTS result. Next: repeat interleaved AIO runs with diagnostics enabled and disabled to estimate logging overhead, then profile a fixed BannerHub workload and inspect Mali-native queue overlap.
+AIO remains a synthetic Vulkan workload, not a BannerHub/game FPS claim or Vulkan CTS result. The next application-level milestone is a fixed BannerHub System-versus-PanVK test. Actual Mali vertex/tiler/fragment/compute overlap remains unmeasured until a supported render-stage producer or OEM profiling path is available.
 
 ## CSF synchronization correctness investigation
 

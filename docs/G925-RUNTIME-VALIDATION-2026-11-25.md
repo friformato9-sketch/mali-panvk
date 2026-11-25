@@ -24,7 +24,7 @@ Android logcat confirms that the custom loader opened:
 
 The container `PanVK_G925_Test` reached the Winlator desktop and started AIO's Vulkan test. The Android Mali driver emitted `GROUP_ERROR_FATAL` for CSF groups 0 and 1. The AIO benchmark result directory remained empty. No FPS or frametime result was produced.
 
-`PANVK_DEBUG=perf` was not enabled: this Winlator build's shortcut environment editor does not expose arbitrary environment variables, and no alternative injection mechanism has yet been validated. Consequently, no `PANVK_PERF` records were collected.
+`PANVK_DEBUG=perf` was not enabled for this initial failed a4b8b6b attempt. After the cdb8aa7 runtime A/B succeeded, the variable was added to the Environment tab of the PanVK AIO shortcut only, saved, and verified to persist after reopening the editor. It produced three repeated diagnostic captures plus one Perfetto-correlated capture; see [G925-PANVK-PERF-2026-11-25.md](G925-PANVK-PERF-2026-11-25.md).
 
 ## System-driver control attempt
 
@@ -75,13 +75,14 @@ See [G925-AIO-AB-2026-11-25.md](G925-AIO-AB-2026-11-25.md) for raw values and li
 
 Across the three valid cdb8aa7 PanVK logs, the loader opened the new libvulkan_panfrost.so; filtered logs contained no GROUP_ERROR_FATAL, 0x24c00488 / 0x88, SHAREABILITY_FAULT, VK_ERROR, or AIO assertion. This is encouraging runtime evidence for the CSG-scoped SYNC_WAIT candidate, but not a universal correctness proof or a real-game uplift claim.
 
-An earlier mixed-driver benchmark (Renderer cdb8aa7, guest Vulkan a4b8b6b) was excluded from the A/B. PANVK_DEBUG=perf was not yet enabled, so the queue-submit timings needed for roadmap point 1 remain to be collected. BannerHub remains the next application-level validation target.
+An earlier mixed-driver benchmark (Renderer cdb8aa7, guest Vulkan a4b8b6b) was excluded from the A/B. Subsequent shortcut-local PANVK_DEBUG=perf runs collected kbase preparation/submit timings; a correlated Perfetto trace collected Vulkan QueueSubmit spans and GPU frequency, but no hardware render-stage slices. BannerHub remains the next application-level validation target.
+
 ## Next validation steps
 
-1. Repeat the AIO Vulkan cube workload in alternating PANVK_DEBUG=perf on/off conditions (at least three runs per condition) to estimate logging overhead and sample variance; the first successful capture is documented in [G925-PANVK-PERF-2026-11-25.md](G925-PANVK-PERF-2026-11-25.md).
-2. Run the same fixed BannerHub scene on Container-1 (System) and PanVK_G925_Test, recording frame pacing and at least three runs per condition.
-3. Use Android Perfetto and, where available, Mali G925 queue/MCU/memory counters to assess vertex/tiler, fragment and compute overlap.
-4. Test G925 HSR prepass as a separate A/B experiment only after the baseline and submit telemetry are captured.
+1. Run the same fixed BannerHub scene on Container-1 (System) and PanVK_G925_Test, recording frame pacing and at least three runs per condition.
+2. If instrumentation overhead needs a quantitative estimate, run at least three interleaved AIO tests with PANVK_DEBUG=perf enabled and disabled; the current three diagnostic runs alone are not an on/off comparison.
+3. Obtain Mali hardware render-stage / queue activity through an OEM-supported profiling path or an Android build that exposes the render-stage Perfetto producer. The current capture exposes GPU frequency but no vertex/tiler, fragment or compute execution slices.
+4. Test G925 HSR prepass as a separate A/B experiment only after the real-application baseline is captured.
 
 ## Safety and reproducibility
 
