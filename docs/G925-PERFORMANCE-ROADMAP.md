@@ -74,7 +74,9 @@ Runtime switch: `PANVK_DEBUG=perf`.
 
 Three AIO Vulkan cube runs per driver were completed with Winlator's Renderer Driver and guest Vulkan Driver both verified on each condition. PanVK cdb8aa7 averaged 1,813.84 FPS versus 994.97 FPS on System (+82.3% in this synthetic benchmark); 1% low averaged 430.05 versus 254.10 (+69.2%). The valid PanVK captures showed no recurrence of the earlier CSF 0x88 fault. Raw run values, driver identity and limitations are in [G925-AIO-AB-2026-11-25.md](G925-AIO-AB-2026-11-25.md).
 
-This is not a BannerHub/game FPS claim or a Vulkan CTS result. The next step for roadmap point 1 is to enable and collect PANVK_DEBUG=perf submit telemetry, then validate a fixed BannerHub workload and inspect Mali-native queue overlap.
+A first PANVK_DEBUG=perf capture has now been collected on the PanVK AIO shortcut. It contains 27,855 main-process records over 20.257 seconds, with mean CPU prepare 3.881 us, mean kbase submit 5.765 us, and zero CPU fallback wait events. The 15-second AIO run completed at 1,860.72 FPS / 442.70 1% low. See [G925-PANVK-PERF-2026-11-25.md](G925-PANVK-PERF-2026-11-25.md) for stream counts, percentiles, hashes and limitations.
+
+Neither AIO result is a BannerHub/game FPS claim or a Vulkan CTS result. Next: repeat interleaved AIO runs with diagnostics enabled and disabled to estimate logging overhead, then profile a fixed BannerHub workload and inspect Mali-native queue overlap.
 
 ## CSF synchronization correctness investigation
 

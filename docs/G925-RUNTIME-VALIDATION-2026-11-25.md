@@ -78,11 +78,10 @@ Across the three valid cdb8aa7 PanVK logs, the loader opened the new libvulkan_p
 An earlier mixed-driver benchmark (Renderer cdb8aa7, guest Vulkan a4b8b6b) was excluded from the A/B. PANVK_DEBUG=perf was not yet enabled, so the queue-submit timings needed for roadmap point 1 remain to be collected. BannerHub remains the next application-level validation target.
 ## Next validation steps
 
-1. Enable PANVK_DEBUG=perf in the PanVK test shortcut process environment and verify PANVK_PERF records appear; do not substitute Turnip's TU_DEBUG variables.
-2. Capture repeated PanVK submit logs and classify preparation time, kbase submit duration, CPU semaphore fallback waits, per-queue call counts and stream bytes.
-3. Run the same fixed BannerHub scene on Container-1 (System) and PanVK_G925_Test, recording frame pacing and at least three runs per condition.
-4. Use Android Perfetto and, where available, Mali G925 queue/MCU/memory counters to assess vertex/tiler, fragment and compute overlap.
-5. Test G925 HSR prepass as a separate A/B experiment only after the baseline and submit telemetry are captured.
+1. Repeat the AIO Vulkan cube workload in alternating PANVK_DEBUG=perf on/off conditions (at least three runs per condition) to estimate logging overhead and sample variance; the first successful capture is documented in [G925-PANVK-PERF-2026-11-25.md](G925-PANVK-PERF-2026-11-25.md).
+2. Run the same fixed BannerHub scene on Container-1 (System) and PanVK_G925_Test, recording frame pacing and at least three runs per condition.
+3. Use Android Perfetto and, where available, Mali G925 queue/MCU/memory counters to assess vertex/tiler, fragment and compute overlap.
+4. Test G925 HSR prepass as a separate A/B experiment only after the baseline and submit telemetry are captured.
 
 ## Safety and reproducibility
 
