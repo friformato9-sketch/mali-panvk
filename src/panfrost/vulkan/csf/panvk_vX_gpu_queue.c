@@ -1523,8 +1523,12 @@ panvk_kbase_csf_done(void *data, bool ok)
    struct panvk_kbase_csf_done *d = data;
    struct panvk_device *dev = to_panvk_device(d->queue->vk.base.device);
 
-   if (!ok)
+   if (!ok) {
       d->queue->kbase_lost = true;
+      /* On kbase, keep a compact VA map for diagnosing GPU page faults. */
+      if (PANVK_DEBUG(DUMP) && dev->debug.decode_ctx)
+         pandecode_dump_mapping_list(dev->debug.decode_ctx);
+   }
    if (d->nr_signals)
       dev->vk.sync->signal(dev->vk.sync, d->signals, d->nr_signals);
    free(d);
