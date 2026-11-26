@@ -52,7 +52,7 @@ pandecode_find_mapped_gpu_mem_containing(struct pandecode_context *ctx,
 void pandecode_map_read_write(struct pandecode_context *ctx);
 
 void pandecode_dump_mappings(struct pandecode_context *ctx);
-void pandecode_dump_mapping_list(struct pandecode_context *ctx);
+void pandecode_log_mapping_list(struct pandecode_context *ctx);
 
 static inline void *
 __pandecode_fetch_gpu_mem(struct pandecode_context *ctx, uint64_t gpu_va,

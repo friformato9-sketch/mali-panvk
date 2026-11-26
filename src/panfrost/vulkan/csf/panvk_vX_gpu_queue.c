@@ -1523,12 +1523,8 @@ panvk_kbase_csf_done(void *data, bool ok)
    struct panvk_kbase_csf_done *d = data;
    struct panvk_device *dev = to_panvk_device(d->queue->vk.base.device);
 
-   if (!ok) {
+   if (!ok)
       d->queue->kbase_lost = true;
-      /* On kbase, keep a compact VA map for diagnosing GPU page faults. */
-      if (PANVK_DEBUG(DUMP) && dev->debug.decode_ctx)
-         pandecode_dump_mapping_list(dev->debug.decode_ctx);
-   }
    if (d->nr_signals)
       dev->vk.sync->signal(dev->vk.sync, d->signals, d->nr_signals);
    free(d);
@@ -1904,8 +1900,14 @@ panvk_per_arch(gpu_queue_check_status)(struct vk_queue *vk_queue)
    }
 
    if (queue->kbase_group) {
-      if (!queue->kbase_lost && !pan_kmod_kbase_csf_group_faulted(queue->kbase_group))
+      const bool group_faulted =
+         queue->kbase_lost || pan_kmod_kbase_csf_group_faulted(queue->kbase_group);
+      if (!group_faulted)
          return VK_SUCCESS;
+
+      if (PANVK_DEBUG(DUMP) && dev->debug.decode_ctx)
+         pandecode_log_mapping_list(dev->debug.decode_ctx);
+
       u_printf_with_ctx(stdout, &dev->printf.ctx);
       return vk_queue_set_lost(&queue->vk, "kbase: the queue group faulted");
    }

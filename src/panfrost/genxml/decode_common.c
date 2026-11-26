@@ -352,22 +352,21 @@ pandecode_dump_mappings(struct pandecode_context *ctx)
 
 
 void
-pandecode_dump_mapping_list(struct pandecode_context *ctx)
+pandecode_log_mapping_list(struct pandecode_context *ctx)
 {
    simple_mtx_lock(&ctx->lock);
 
-   pandecode_dump_file_open(ctx);
-   fprintf(ctx->dump_stream, "GPU memory mappings at kbase CSF fault:\n");
-
+   uint32_t count = 0;
+   mesa_logi("GPU_MAP_LIST_BEGIN");
    rb_tree_foreach(struct pandecode_mapped_memory, mem, &ctx->mmap_tree, node) {
-      fprintf(ctx->dump_stream,
-              "GPU_MAP name=%s start=0x%016" PRIx64 " end=0x%016" PRIx64
-              " size=0x%zx cpu=%s\n",
-              mem->name, mem->gpu_va, mem->gpu_va + mem->length, mem->length,
-              mem->addr ? "mapped" : "not-mapped");
+      mesa_logi("GPU_MAP name=%s start=0x%016" PRIx64 " end=0x%016" PRIx64
+                " size=0x%zx cpu=%s",
+                mem->name, mem->gpu_va, mem->gpu_va + mem->length, mem->length,
+                mem->addr ? "mapped" : "not-mapped");
+      count++;
    }
+   mesa_logi("GPU_MAP_LIST_END count=%u", count);
 
-   fflush(ctx->dump_stream);
    simple_mtx_unlock(&ctx->lock);
 }
 
