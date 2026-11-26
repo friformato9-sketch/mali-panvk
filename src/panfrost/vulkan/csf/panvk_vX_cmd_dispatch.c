@@ -10,6 +10,8 @@
  * SPDX-License-Identifier: MIT
  */
 
+#include <inttypes.h>
+
 #include "genxml/gen_macros.h"
 
 #include "panvk_buffer.h"
@@ -20,6 +22,8 @@
 #include "panvk_cmd_push_constant.h"
 #include "panvk_device.h"
 #include "panvk_entrypoints.h"
+
+#include "vk_log.h"
 #include "panvk_instr.h"
 #include "panvk_macros.h"
 #include "panvk_meta.h"
@@ -428,6 +432,10 @@ panvk_per_arch(CmdDispatchBase)(VkCommandBuffer commandBuffer,
       .barrier = PANVK_CSF_BARRIER_SYNC,
    };
 
+   mesa_logi("GPU_CMD_DISPATCH cmdbuf=%p groups=%u,%u,%u base=%u,%u,%u",
+             cmdbuf, groupCountX, groupCountY, groupCountZ, baseGroupX,
+             baseGroupY, baseGroupZ);
+
    panvk_per_arch(panvk_instr_begin_work)(PANVK_SUBQUEUE_COMPUTE, cmdbuf,
                                           PANVK_INSTR_WORK_TYPE_DISPATCH);
 
@@ -458,6 +466,9 @@ panvk_per_arch(CmdDispatchIndirect)(VkCommandBuffer commandBuffer,
    VK_FROM_HANDLE(panvk_cmd_buffer, cmdbuf, commandBuffer);
    VK_FROM_HANDLE(panvk_buffer, buffer, _buffer);
    uint64_t buffer_gpu = panvk_buffer_gpu_ptr(buffer, offset);
+
+   mesa_logi("GPU_CMD_DISPATCH_INDIRECT cmdbuf=%p buffer=%p va=0x%016" PRIx64,
+             cmdbuf, buffer, buffer_gpu);
    struct panvk_dispatch_info info = {
       .indirect.buffer_dev_addr = buffer_gpu,
       .barrier = PANVK_CSF_BARRIER_SYNC,

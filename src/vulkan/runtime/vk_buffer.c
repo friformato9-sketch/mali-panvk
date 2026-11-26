@@ -21,11 +21,14 @@
  * IN THE SOFTWARE.
  */
 
+#include <inttypes.h>
+
 #include "vk_buffer.h"
 
 #include "vk_common_entrypoints.h"
 #include "vk_alloc.h"
 #include "vk_device.h"
+#include "vk_log.h"
 #include "vk_util.h"
 
 void
@@ -165,6 +168,11 @@ vk_common_GetBufferDeviceAddress(UNUSED VkDevice device,
                                  const VkBufferDeviceAddressInfo *pInfo)
 {
    VK_FROM_HANDLE(vk_buffer, buffer, pInfo->buffer);
+   VkDeviceAddress address = buffer->device_address;
 
-   return buffer->device_address;
+   mesa_logi("GPU_GET_BDA buffer=%p address=0x%016" PRIx64
+             " size=0x%" PRIx64 " usage=0x%" PRIx64,
+             buffer, address, buffer->size, buffer->usage);
+
+   return address;
 }

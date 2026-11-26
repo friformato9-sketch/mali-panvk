@@ -11,6 +11,7 @@
  * SPDX-License-Identifier: MIT
  */
 
+#include <inttypes.h>
 #include <stdint.h>
 #include "genxml/gen_macros.h"
 
@@ -48,6 +49,7 @@
 #include "util/bitscan.h"
 #include "vk_android.h"
 #include "vk_format.h"
+#include "vk_log.h"
 #include "vk_meta.h"
 #include "vk_pipeline_layout.h"
 #include "vk_render_pass.h"
@@ -4679,6 +4681,10 @@ panvk_per_arch(CmdDraw)(VkCommandBuffer commandBuffer, uint32_t vertexCount,
    if (instanceCount == 0 || vertexCount == 0)
       return;
 
+   mesa_logi("GPU_CMD_DRAW cmdbuf=%p vertices=%u instances=%u first_vertex=%u"
+             " first_instance=%u",
+             cmdbuf, vertexCount, instanceCount, firstVertex, firstInstance);
+
    /* gl_BaseVertexARB is a signed integer, and it should expose the value of
     * firstVertex in a non-indexed draw. */
    assert(firstVertex < INT32_MAX);
@@ -4709,6 +4715,11 @@ panvk_per_arch(CmdDrawIndexed)(VkCommandBuffer commandBuffer,
    if (instanceCount == 0 || indexCount == 0)
       return;
 
+   mesa_logi("GPU_CMD_DRAW_INDEXED cmdbuf=%p indices=%u instances=%u"
+             " first_index=%u vertex_offset=%d first_instance=%u",
+             cmdbuf, indexCount, instanceCount, firstIndex, vertexOffset,
+             firstInstance);
+
    /* gl_BaseInstance is a signed integer, and it should expose the value of
     * firstInstnace. */
    assert(firstInstance < INT32_MAX);
@@ -4736,6 +4747,11 @@ panvk_per_arch(CmdDrawIndirect)(VkCommandBuffer commandBuffer, VkBuffer _buffer,
    if (drawCount == 0)
       return;
 
+   mesa_logi("GPU_CMD_DRAW_INDIRECT cmdbuf=%p buffer=%p va=0x%016" PRIx64
+             " count=%u stride=%u",
+             cmdbuf, buffer, panvk_buffer_gpu_ptr(buffer, offset), drawCount,
+             stride);
+
    struct panvk_draw_info draw = {
       .indirect.buffer_dev_addr = panvk_buffer_gpu_ptr(buffer, offset),
       .indirect.draw_count = drawCount,
@@ -4756,6 +4772,11 @@ panvk_per_arch(CmdDrawIndexedIndirect)(VkCommandBuffer commandBuffer,
 
    if (drawCount == 0)
       return;
+
+   mesa_logi("GPU_CMD_DRAW_INDEXED_INDIRECT cmdbuf=%p buffer=%p"
+             " va=0x%016" PRIx64 " count=%u stride=%u",
+             cmdbuf, buffer, panvk_buffer_gpu_ptr(buffer, offset), drawCount,
+             stride);
 
    struct panvk_draw_info draw = {
       .index = panvk_draw_info_index(cmdbuf, 0),
