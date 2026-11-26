@@ -3654,9 +3654,20 @@ gs_index_records(struct panvk_cmd_buffer *cmdbuf, const struct panvk_draw_info *
 static uint64_t
 gs_upload_table(struct panvk_cmd_buffer *cmdbuf, const uint32_t *offsets)
 {
+   struct panvk_cmd_graphics_state *gfx = &cmdbuf->state.gfx;
+   for (unsigned i = 0; i < ARRAY_SIZE(gfx->gs.table_cache); i++) {
+      if (gfx->gs.table_cache[i].src == offsets && gfx->gs.table_cache[i].gpu)
+         return gfx->gs.table_cache[i].gpu;
+   }
+
    struct pan_ptr t = panvk_cmd_alloc_dev_mem(cmdbuf, desc, 64 * sizeof(uint32_t), 4);
    if (t.cpu)
       memcpy(t.cpu, offsets, 64 * sizeof(uint32_t));
+   if (t.gpu) {
+      const unsigned slot = gfx->gs.table_cache_next++ % ARRAY_SIZE(gfx->gs.table_cache);
+      gfx->gs.table_cache[slot].src = offsets;
+      gfx->gs.table_cache[slot].gpu = t.gpu;
+   }
    return t.gpu;
 }
 

@@ -245,6 +245,25 @@ write_image_view_desc(struct panvk_descriptor_set *set,
                 set, binding, elem, plane, packed_words[0], packed_words[1],
                 packed_words[2], packed_words[3], packed_words[4],
                 packed_words[5], packed_words[6], packed_words[7]);
+
+      /* Dump the hardware payload addressed by the texture descriptor. */
+      const uint64_t payload_va = ((uint64_t)packed_words[5] << 32) |
+                                  packed_words[4];
+      const uint64_t payload_base = panvk_priv_mem_dev_addr(view->mem);
+      void *payload_host = panvk_priv_mem_host_addr(view->mem);
+      if (payload_host && payload_va >= payload_base &&
+          view->mem_size >= 4 * sizeof(uint32_t)) {
+         const uint64_t payload_offset = payload_va - payload_base;
+         if (payload_offset <= view->mem_size - 4 * sizeof(uint32_t)) {
+            const uint32_t *payload_words =
+               (const uint32_t *)((const uint8_t *)payload_host + payload_offset);
+            mesa_logi("GPU_DESC_IMAGE_PAYLOAD set=%p binding=%u elem=%u plane=%u"
+                      " payload_va=0x%016" PRIx64
+                      " p0=%08x p1=%08x p2=%08x p3=%08x",
+                      set, binding, elem, plane, payload_va, payload_words[0],
+                      payload_words[1], payload_words[2], payload_words[3]);
+         }
+      }
 #else
    for (uint8_t plane = 0; plane < binding_layout->textures_per_desc; plane++) {
 #endif
@@ -670,8 +689,13 @@ panvk_desc_pool_allocate_set(struct panvk_descriptor_pool *pool,
    uint64_t descs_size = num_descs * PANVK_DESCRIPTOR_SIZE;
    uint32_t first_free_set =
       __bitset_ffs(pool->free_sets, BITSET_WORDS(pool->max_sets));
-   if (first_free_set == 0 || pool->desc_heap.free_size < descs_size)
+   if (first_free_set == 0 || pool->desc_heap.free_size < descs_size) {
+      mesa_logw("GPU_DESC_POOL_EXHAUSTED pool=%p free_set=%u max_sets=%u heap_free=%llu requested=%llu num_descs=%u variable_count=%u",
+                (void *)pool, first_free_set != 0, pool->max_sets,
+                (unsigned long long)pool->desc_heap.free_size,
+                (unsigned long long)descs_size, num_descs, variable_count);
       return panvk_error(pool, VK_ERROR_OUT_OF_POOL_MEMORY);
+   }
 
    uint64_t descs_dev_addr = 0;
    if (num_descs) {

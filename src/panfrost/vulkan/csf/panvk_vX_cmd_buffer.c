@@ -10,6 +10,8 @@
  * SPDX-License-Identifier: MIT
  */
 
+#include <stdlib.h>
+
 #include "drm-uapi/panthor_drm.h"
 
 #include "genxml/gen_macros.h"
@@ -1016,8 +1018,12 @@ panvk_create_cmdbuf(struct vk_command_pool *vk_pool, VkCommandBufferLevel level,
       .owns_bos = true,
       .needs_locking = false,
    };
-   panvk_pool_init(&cmdbuf->desc_pool, device, &pool->desc_bo_pool, NULL,
-                   &desc_pool_props);
+   /* Command buffers can be created concurrently; read the opt-in once here rather
+    * than racing on a mutable process-global cache. This path is not hot. */
+   const char *e = getenv("PANVK_DESC_BIG_REUSE");
+   const bool desc_big_reuse = e && e[0] == '1';
+   panvk_pool_init(&cmdbuf->desc_pool, device, &pool->desc_bo_pool,
+                   desc_big_reuse ? &pool->desc_big_bo_pool : NULL, &desc_pool_props);
 
    struct panvk_pool_properties tls_pool_props = {
       .create_flags =

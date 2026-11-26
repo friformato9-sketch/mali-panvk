@@ -319,6 +319,27 @@ bi_make_affinity(uint64_t clobber, unsigned count, bool split_file)
    return ~clobbered;
 }
 
+/* Return the next live SSA node at or after i. Interference construction often scans
+ * thousands of nodes even though only a small subset is live at each instruction. */
+static inline unsigned
+bi_next_live(const uint8_t *live, unsigned i, unsigned n)
+{
+   while (i < n) {
+      if ((i & 7) == 0 && i + 8 <= n) {
+         uint64_t word;
+         memcpy(&word, live + i, sizeof(word));
+         if (!word) {
+            i += 8;
+            continue;
+         }
+      }
+      if (live[i])
+         return i;
+      ++i;
+   }
+   return n;
+}
+
 static void
 bi_mark_interference(bi_block *block, struct lcra_state *l, uint8_t *live,
                      uint64_t preload_live, unsigned node_count, bool is_blend,
@@ -348,7 +369,8 @@ bi_mark_interference(bi_block *block, struct lcra_state *l, uint8_t *live,
 
          l->affinity[node] &= affinity;
 
-         for (unsigned i = 0; i < node_count; ++i) {
+         for (unsigned i = bi_next_live(live, 0, node_count); i < node_count;
+              i = bi_next_live(live, i + 1, node_count)) {
             uint8_t r = live[i];
 
             /* Nodes only interfere if they occupy
@@ -410,10 +432,9 @@ bi_mark_interference(bi_block *block, struct lcra_state *l, uint8_t *live,
             BITFIELD64_MASK(16) |
             BITFIELD64_BIT(bi_preload_reg(BI_PRELOAD_BLEND_LINK, arch));
 
-         for (unsigned i = 0; i < node_count; ++i) {
-            if (live[i])
-               l->affinity[i] &= ~clobber;
-         }
+         for (unsigned i = bi_next_live(live, 0, node_count); i < node_count;
+              i = bi_next_live(live, i + 1, node_count))
+            l->affinity[i] &= ~clobber;
       }
 
       /* Update live_in */
