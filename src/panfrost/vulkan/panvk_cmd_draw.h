@@ -246,6 +246,11 @@ struct panvk_cmd_graphics_state {
       uint32_t xfb_stream_idx;
       /* gl_ViewportIndex: the per-viewport transform table (panvk_gs_push::viewports). */
       uint64_t viewports;
+      struct {
+         const uint32_t *src;
+         uint64_t gpu;
+      } table_cache[4];
+      unsigned table_cache_next;
    } gs;
 
    /* Tessellation. The tess eval shader runs through the geometry shader emulation
