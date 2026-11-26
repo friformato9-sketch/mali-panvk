@@ -9,6 +9,8 @@
  * SPDX-License-Identifier: MIT
  */
 
+#include <inttypes.h>
+
 #include "genxml/gen_macros.h"
 
 #include "panvk_buffer.h"
@@ -24,6 +26,7 @@
 #include "vk_alloc.h"
 #include "vk_command_buffer.h"
 #include "vk_command_pool.h"
+#include "vk_log.h"
 
 static void
 cmd_desc_state_bind_sets(struct panvk_descriptor_state *desc_state,
@@ -39,12 +42,20 @@ cmd_desc_state_bind_sets(struct panvk_descriptor_state *desc_state,
           desc_state->sets[set_idx] == desc_state->push_sets[set_idx])
          desc_state->push_sets[set_idx]->descs.dev = 0;
 
+      mesa_logi("GPU_BIND_DESCRIPTOR_SET set_idx=%u set=%p layout=%p"
+                " desc_va=0x%016" PRIx64 " desc_count=%u",
+                set_idx, set, set ? set->layout : NULL,
+                set ? set->descs.dev : 0, set ? set->desc_count : 0);
       desc_state->sets[set_idx] = set;
 
       if (set) {
          for (unsigned b = 0; b < set->layout->dyn_buf_count; b++) {
-            desc_state->dyn_buf_offsets[set_idx][b] =
-               info->pDynamicOffsets[dynoffset_idx++];
+            uint32_t dyn_offset = info->pDynamicOffsets[dynoffset_idx++];
+            desc_state->dyn_buf_offsets[set_idx][b] = dyn_offset;
+            mesa_logi("GPU_BIND_DESCRIPTOR_SET_DYNAMIC set_idx=%u dyn_idx=%u"
+                      " offset=0x%x base_va=0x%016" PRIx64 " range=0x%" PRIx64,
+                      set_idx, b, dyn_offset, set->dyn_bufs[b].dev_addr,
+                      set->dyn_bufs[b].size);
          }
          desc_state->dyn_ssbos[set_idx] = set->layout->dyn_ssbos;
       }
@@ -251,6 +262,14 @@ panvk_per_arch(cmd_fill_dyn_bufs)(
       assert(set_idx < MAX_SETS);
       assert(set);
 
+      mesa_logi("GPU_USE_DYNAMIC_BUFFER set_idx=%u dyn_idx=%u"
+                " va=0x%016" PRIx64 " dyn_offset=0x%x"
+                " effective_va=0x%016" PRIx64 " range=0x%" PRIx64,
+                set_idx, dyn_buf_idx,
+                set->dyn_bufs[dyn_buf_idx].dev_addr, dyn_buf_offset,
+                set->dyn_bufs[dyn_buf_idx].dev_addr + dyn_buf_offset,
+                set->dyn_bufs[dyn_buf_idx].size);
+
       pan_pack(&buffers[i], BUFFER, cfg) {
          cfg.size = align(set->dyn_bufs[dyn_buf_idx].size, is_ssbo ? 4 : 16);
          cfg.address = set->dyn_bufs[dyn_buf_idx].dev_addr + dyn_buf_offset;
@@ -274,6 +293,41 @@ panvk_per_arch(cmd_prepare_shader_res_table)(
       panvk_cmd_alloc_desc_array(cmdbuf, res_count * repeat_count, RESOURCE);
    if (!ptr.gpu)
       return VK_ERROR_OUT_OF_DEVICE_MEMORY;
+
+   mesa_logi("GPU_RES_TABLE cmdbuf=%p desc_info=%p used_set_mask=0x%x"
+             " uses_heaps=%u dyn_bufs=%u embedded_samplers=%u"
+             " embedded_va=0x%016" PRIx64 " repeat=%u res_count=%u"
+             " table_va=0x%016" PRIx64 " driver_set_va=0x%016" PRIx64
+             " driver_set_size=0x%x",
+             cmdbuf, desc_info, desc_info->used_set_mask,
+             desc_info->uses_heaps, desc_info->dyn_bufs.count,
+             desc_info->embedded_samplers.count,
+             panvk_priv_mem_dev_addr(desc_info->embedded_samplers.descs),
+             repeat_count, res_count, ptr.gpu,
+             shader_desc_state->driver_set.dev_addr,
+             shader_desc_state->driver_set.size);
+
+   for (uint32_t i = 0; i < first_unused_set; i++) {
+      const struct panvk_descriptor_set *set = desc_state->sets[i];
+      if (desc_info->used_set_mask & BITFIELD_BIT(i)) {
+         mesa_logi("GPU_RES_SET cmdbuf=%p set_idx=%u set=%p layout=%p"
+                   " desc_va=0x%016" PRIx64 " desc_count=%u desc_size=0x%x",
+                   cmdbuf, i, set, set ? set->layout : NULL,
+                   set ? set->descs.dev : 0,
+                   set ? set->desc_count : 0,
+                   set ? set->desc_count * PANVK_DESCRIPTOR_SIZE : 0);
+      }
+   }
+
+   if (desc_info->uses_heaps) {
+      mesa_logi("GPU_RES_HEAPS cmdbuf=%p resource_va=0x%016" PRIx64
+                " resource_size=0x%" PRIx64
+                " sampler_va=0x%016" PRIx64 " sampler_size=0x%" PRIx64,
+                cmdbuf, desc_state->heaps[PANVK_HEAP_RESOURCE].addr,
+                desc_state->heaps[PANVK_HEAP_RESOURCE].size,
+                desc_state->heaps[PANVK_HEAP_SAMPLER].addr,
+                desc_state->heaps[PANVK_HEAP_SAMPLER].size);
+   }
 
    struct mali_resource_packed *res_table = ptr.cpu;
 
@@ -379,6 +433,13 @@ panvk_per_arch(CmdBindDescriptorSets2KHR)(
 {
    VK_FROM_HANDLE(panvk_cmd_buffer, cmdbuf, commandBuffer);
 
+   mesa_logi("GPU_BIND_DESCRIPTOR_SETS cmdbuf=%p stages=0x%x layout=%p"
+             " first_set=%u set_count=%u dynamic_offset_count=%u",
+             cmdbuf, pBindDescriptorSetsInfo->stageFlags,
+             pBindDescriptorSetsInfo->layout,
+             pBindDescriptorSetsInfo->firstSet,
+             pBindDescriptorSetsInfo->descriptorSetCount,
+             pBindDescriptorSetsInfo->dynamicOffsetCount);
    /* TODO: Invalidate only if the shader tables are disturbed */
    if (pBindDescriptorSetsInfo->stageFlags & VK_SHADER_STAGE_ALL_GRAPHICS) {
       cmd_desc_state_bind_sets(&cmdbuf->state.gfx.desc_state,
@@ -402,6 +463,9 @@ panvk_per_arch(cmd_bind_desc_heap)(struct panvk_cmd_buffer *cmdbuf,
                                    const VkBindHeapInfoEXT *info)
 {
    /* Heaps are shared by every bind point. */
+   mesa_logi("GPU_BIND_HEAP cmdbuf=%p heap=%u address=0x%016" PRIx64
+             " size=0x%" PRIx64,
+             cmdbuf, heap, info->heapRange.address, info->heapRange.size);
    struct panvk_descriptor_state *states[] = {
       &cmdbuf->state.gfx.desc_state,
       &cmdbuf->state.compute.desc_state,

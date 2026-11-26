@@ -90,6 +90,12 @@ panvk_BindBufferMemory2(VkDevice _device, uint32_t bindInfoCount,
 
       buffer->vk.device_address = mem->addr.dev + pBindInfos[i].memoryOffset;
 
+      mesa_logi("GPU_BIND_BUFFER buffer=%p memory=%p memory_va=0x%016" PRIx64
+                " memory_offset=0x%" PRIx64 " buffer_va=0x%016" PRIx64
+                " size=0x%" PRIx64,
+                buffer, mem, mem->addr.dev, pBindInfos[i].memoryOffset,
+                buffer->vk.device_address, buffer->vk.size);
+
       panvk_address_binding_report(device, &buffer->vk.base,
                                    buffer->vk.device_address, buffer->vk.size,
                                    VK_DEVICE_ADDRESS_BINDING_TYPE_BIND_EXT);
@@ -118,6 +124,10 @@ panvk_CreateBuffer(VkDevice _device, const VkBufferCreateInfo *pCreateInfo,
       result = panvk_error(device, VK_ERROR_OUT_OF_DEVICE_MEMORY);
       goto err_destroy_buffer;
    }
+   mesa_logi("GPU_CREATE_BUFFER buffer=%p size=0x%" PRIx64
+             " usage=0x%x flags=0x%x sharing=%u",
+             buffer, buffer->vk.size, pCreateInfo->usage,
+             pCreateInfo->flags, pCreateInfo->sharingMode);
 
    if (buffer->vk.create_flags & VK_BUFFER_CREATE_SPARSE_BINDING_BIT) {
       uint64_t va_range = panvk_buffer_get_sparse_size(buffer);

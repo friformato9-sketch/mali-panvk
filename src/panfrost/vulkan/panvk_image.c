@@ -881,6 +881,15 @@ panvk_CreateImage(VkDevice device, const VkImageCreateInfo *pCreateInfo,
        VK_IMAGE_CREATE_MULTISAMPLED_RENDER_TO_SINGLE_SAMPLED_BIT_EXT)
       create_ms_images(dev, image, pCreateInfo, pAllocator);
 
+   mesa_logi("GPU_CREATE_IMAGE image=%p format=%u extent=%ux%ux%u"
+             " mips=%u layers=%u samples=%u usage=0x%" PRIx64 " flags=0x%" PRIx64 ""
+             " tiling=%u size=0x%" PRIx64,
+             image, image->vk.format, image->vk.extent.width,
+             image->vk.extent.height, image->vk.extent.depth,
+             image->vk.mip_levels, image->vk.array_layers,
+             image->vk.samples, image->vk.usage, image->vk.create_flags,
+             image->vk.tiling, size);
+
    *pImage = panvk_image_to_handle(image);
    return VK_SUCCESS;
 
@@ -1432,6 +1441,14 @@ panvk_image_bind(struct panvk_device *dev,
    }
 
    assert(mem);
+   mesa_logi("GPU_BIND_IMAGE image=%p memory=%p memory_va=0x%016" PRIx64
+             " memory_offset=0x%" PRIx64 " format=%u extent=%ux%ux%u"
+             " mips=%u layers=%u",
+             image, mem, mem->addr.dev, offset, image->vk.format,
+             image->vk.extent.width, image->vk.extent.height,
+             image->vk.extent.depth, image->vk.mip_levels,
+             image->vk.array_layers);
+
    if (is_disjoint(image)) {
       const VkBindImagePlaneMemoryInfo *plane_info =
          vk_find_struct_const(bind_info->pNext, BIND_IMAGE_PLANE_MEMORY_INFO);

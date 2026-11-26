@@ -87,7 +87,7 @@ panvk_priv_bo_create(struct panvk_device *dev, uint64_t size, uint32_t flags,
    if (dev->debug.decode_ctx) {
       pandecode_inject_mmap(dev->debug.decode_ctx, priv_bo->addr.dev,
                             priv_bo->addr.host, pan_kmod_bo_size(priv_bo->bo),
-                            NULL);
+                            "panvk_private_bo");
    }
 
    p_atomic_set(&priv_bo->refcnt, 1);

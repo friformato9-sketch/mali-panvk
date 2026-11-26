@@ -90,3 +90,18 @@ An earlier mixed-driver benchmark (Renderer cdb8aa7, guest Vulkan a4b8b6b) was e
 - Keep `Container-1` on `System`; use `PanVK_G925_Test` for the custom driver.
 - Retain the known-good PanVK package and its SHA-256 outside the source tree.
 - Do not infer performance from the AIO window's initial cube rendering or from SurfaceFlinger queue FPS logs.
+
+## Psycho-Sleuth validation with 43ed0f8 (2026-11-26)
+
+One launch of Psycho-Sleuth Demo was made on the SM-X730 using the imported `Mesa 27.0.0-devel-43ed0f8` Vulkan driver. The shortcut's Video page showed Vulkan Driver `43ed0f8`; its OpenGL Driver remained `Zink`. The Environment page showed `PANVK_DEBUG=startup,perf,dump`. The game's window remained black and the PanVK queue faulted.
+
+The log was captured immediately after the run at `C:\Users\frifo\Downloads\panvk-43ed0f8-logcat.txt`; the captured screen is `C:\Users\frifo\Downloads\panvk-43ed0f8-screen.png`. The game process created a kbase physical device, then submitted 3 command buffers / 12 calls before this fault:
+
+```text
+kbase: queue group 0: group fault (type 0), status 0x050002c2 (exception 0xc2), sideband 0x00000072210002c0, queue 0
+GPU_MAP_LIST_END count=34
+```
+
+No interval in the 34-entry `GPU_MAP` list contains fault VA `0x72210002c0`. The closest preceding mapping was `memory_721d000000`, `[0x721d000000, 0x7221000000)`, size `0x4000000`; the fault is `0x2c0` bytes above its exclusive end. The next mapping starts at `0x7222000000`. Therefore the fault address is currently unmapped in PanVK's decode context, rather than belonging to a BO recorded by the list. An overrun from the immediately preceding allocation is a lead, not yet a proven BO attribution: `pandecode_inject_mmap()` uses a null name here, so the dump labels both Vulkan allocations and private driver BOs generically as `memory_<GPU-VA>`.
+
+The next code investigation should trace GPU accesses submitted in the 3-command-buffer batch and identify the allocation at `0x721d000000`, including its Vulkan allocation or private-BO owner and lifetime. Inspect the mapping registration sites in `panvk_device_memory.c` and `panvk_priv_bo.c`, plus CSF submission/decode in `csf/panvk_vX_gpu_queue.c`. Do not treat the adjacent mapping as confirmed ownership of `0x72210002c0`.

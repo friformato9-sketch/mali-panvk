@@ -28,6 +28,7 @@
 #include "panvk_descriptor_set.h"
 #include "panvk_descriptor_set_layout.h"
 #include "panvk_device.h"
+#include "panvk_device_memory.h"
 #include "panvk_entrypoints.h"
 #include "panvk_image.h"
 #include "panvk_image_view.h"
@@ -203,8 +204,50 @@ write_image_view_desc(struct panvk_descriptor_set *set,
    }
 
    VK_FROM_HANDLE(panvk_image_view, view, pImageInfo->imageView);
+   struct panvk_image *image =
+      container_of(view->vk.image, struct panvk_image, vk);
 
+   mesa_logi("GPU_DESC_IMAGE set=%p binding=%u elem=%u type=%u"
+             " view=%p image=%p image_format=%u extent=%ux%ux%u"
+             " mips=%u layers=%u view_format=%u aspects=0x%x"
+             " view_mip=%u+%u view_layer=%u+%u"
+             " view_payload_va=0x%016" PRIx64 " view_payload_size=0x%x"
+             " plane_count=%u",
+             set, binding, elem, type, view, image, image->vk.format,
+             image->vk.extent.width, image->vk.extent.height,
+             image->vk.extent.depth, image->vk.mip_levels,
+             image->vk.array_layers, view->vk.view_format, view->vk.aspects,
+             view->vk.base_mip_level, view->vk.level_count,
+             view->vk.base_array_layer, view->vk.layer_count,
+             panvk_priv_mem_dev_addr(view->mem), view->mem_size,
+             image->plane_count);
+
+   for (uint32_t p = 0; p < image->plane_count; p++) {
+      const struct panvk_image_plane *plane_info = &image->planes[p];
+      mesa_logi("GPU_DESC_IMAGE_PLANE set=%p binding=%u elem=%u plane=%u"
+                " memory=%p memory_va=0x%016" PRIx64
+                " memory_offset=0x%016" PRIx64,
+                set, binding, elem, p, plane_info->mem,
+                plane_info->mem ? plane_info->mem->addr.dev : 0,
+                plane_info->mem_offset);
+   }
+
+#if PAN_ARCH >= 9
    for (uint8_t plane = 0; plane < binding_layout->textures_per_desc; plane++) {
+      const struct mali_texture_packed *texture =
+         type == VK_DESCRIPTOR_TYPE_STORAGE_IMAGE
+            ? &view->descs.storage_tex[plane]
+            : &view->descs.tex[plane];
+      const uint32_t *packed_words = (const uint32_t *)texture;
+      mesa_logi("GPU_DESC_IMAGE_WORDS set=%p binding=%u elem=%u plane=%u"
+                " w0=%08x w1=%08x w2=%08x w3=%08x"
+                " w4=%08x w5=%08x w6=%08x w7=%08x",
+                set, binding, elem, plane, packed_words[0], packed_words[1],
+                packed_words[2], packed_words[3], packed_words[4],
+                packed_words[5], packed_words[6], packed_words[7]);
+#else
+   for (uint8_t plane = 0; plane < binding_layout->textures_per_desc; plane++) {
+#endif
       struct panvk_subdesc_info subdesc = get_tex_subdesc_info(type, plane);
 #if PAN_ARCH >= 9
       if (type == VK_DESCRIPTOR_TYPE_STORAGE_IMAGE)
@@ -239,6 +282,13 @@ write_buffer_desc(struct panvk_descriptor_set *set,
    VK_FROM_HANDLE(panvk_buffer, buffer, info->buffer);
    const uint64_t range = panvk_buffer_range(buffer, info->offset, info->range);
    assert(range <= UINT32_MAX);
+
+   mesa_logi("GPU_DESC_BUFFER set=%p binding=%u elem=%u type=%u buffer=%p"
+             " va=0x%016" PRIx64 " buffer_size=0x%" PRIx64
+             " offset=0x%" PRIx64 " range=0x%" PRIx64,
+             set, binding, elem, type, buffer,
+             panvk_buffer_gpu_ptr(buffer, info->offset), buffer->vk.size,
+             info->offset, range);
 
 #if PAN_ARCH < 9
    if (type == VK_DESCRIPTOR_TYPE_STORAGE_BUFFER) {
@@ -287,6 +337,11 @@ write_dynamic_buffer_desc(struct panvk_descriptor_set *set,
 
       dev_addr = panvk_buffer_gpu_ptr(buffer, info->offset);
       range = panvk_buffer_range(buffer, info->offset, info->range);
+      mesa_logi("GPU_DESC_DYNAMIC_BUFFER set=%p binding=%u elem=%u"
+                " buffer=%p va=0x%016" PRIx64 " buffer_size=0x%" PRIx64
+                " offset=0x%" PRIx64 " range=0x%" PRIx64,
+                set, binding, elem, buffer, dev_addr, buffer->vk.size,
+                info->offset, range);
    }
 
    const struct panvk_descriptor_set_binding_layout *binding_layout =
@@ -315,6 +370,15 @@ write_buffer_view_desc(struct panvk_descriptor_set *set,
    }
 
    VK_FROM_HANDLE(panvk_buffer_view, view, bufferView);
+
+   mesa_logi("GPU_DESC_BUFFER_VIEW set=%p binding=%u elem=%u type=%u"
+             " view=%p buffer=%p va=0x%016" PRIx64
+             " buffer_size=0x%" PRIx64 " offset=0x%" PRIx64
+             " range=0x%" PRIx64 " format=%u",
+             set, binding, elem, type, view, view->vk.buffer,
+             view->vk.buffer->device_address + view->vk.offset,
+             view->vk.buffer->size, view->vk.offset, view->vk.range,
+             view->vk.format);
 
 #if PAN_ARCH < 9
    struct {
@@ -814,6 +878,13 @@ panvk_descriptor_set_copy(const VkCopyDescriptorSet *copy)
       &dst_set->layout->bindings[copy->dstBinding];
    const struct panvk_descriptor_set_binding_layout *src_binding_layout =
       &src_set->layout->bindings[copy->srcBinding];
+
+   mesa_logi("GPU_DESC_SET_COPY src_set=%p dst_set=%p"
+             " src_binding=%u dst_binding=%u src_elem=%u dst_elem=%u"
+             " count=%u type=%u",
+             src_set, dst_set, copy->srcBinding, copy->dstBinding,
+             copy->srcArrayElement, copy->dstArrayElement,
+             copy->descriptorCount, src_binding_layout->type);
 
    ASSERTED const bool src_mutable =
       src_binding_layout->type == VK_DESCRIPTOR_TYPE_MUTABLE_EXT;

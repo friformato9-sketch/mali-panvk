@@ -42,6 +42,12 @@ panvk_per_arch(CreateBufferView)(VkDevice _device,
 
    vk_buffer_view_init(&device->vk, &view->vk, pCreateInfo);
 
+   mesa_logi("GPU_CREATE_BUFFER_VIEW view=%p buffer=%p buffer_size=0x%" PRIx64
+             " buffer_usage=0x%" PRIx64 " offset=0x%" PRIx64 " range=0x%" PRIx64
+             " format=%u elements=0x%" PRIx64,
+             view, buffer, buffer->vk.size, buffer->vk.usage, view->vk.offset,
+             view->vk.range, view->vk.format, view->vk.elements);
+
    enum pipe_format pfmt = vk_format_to_pipe_format(view->vk.format);
 
    VkBufferUsageFlags tex_usage_mask =

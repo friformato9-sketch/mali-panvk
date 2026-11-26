@@ -1124,10 +1124,16 @@ panvk_per_arch(CmdBindVertexBuffers2)(VkCommandBuffer commandBuffer,
       VK_FROM_HANDLE(panvk_buffer, buffer, pBuffers[i]);
 
       if (buffer) {
-         cmdbuf->state.gfx.vb.bufs[firstBinding + i].address =
-            panvk_buffer_gpu_ptr(buffer, pOffsets[i]);
-         cmdbuf->state.gfx.vb.bufs[firstBinding + i].size = panvk_buffer_range(
+         const uint64_t address = panvk_buffer_gpu_ptr(buffer, pOffsets[i]);
+         const uint64_t range = panvk_buffer_range(
             buffer, pOffsets[i], pSizes ? pSizes[i] : VK_WHOLE_SIZE);
+         mesa_logi("GPU_USE_VERTEX_BUFFER binding=%u buffer=%p va=0x%016" PRIx64
+                   " offset=0x%" PRIx64 " range=0x%" PRIx64
+                   " buffer_size=0x%" PRIx64 " usage=0x%" PRIx64,
+                   firstBinding + i, buffer, address, pOffsets[i], range,
+                   buffer->vk.size, buffer->vk.usage);
+         cmdbuf->state.gfx.vb.bufs[firstBinding + i].address = address;
+         cmdbuf->state.gfx.vb.bufs[firstBinding + i].size = range;
       } else {
          /* A null buffer (nullDescriptor) reads zeros. On Bifrost that is zeroed memory nothing
           * writes rather than address 0, which the attribute fetch would fault on. */
@@ -1152,6 +1158,13 @@ panvk_per_arch(CmdBindIndexBuffer2)(VkCommandBuffer commandBuffer,
    VK_FROM_HANDLE(panvk_buffer, buf, buffer);
 
    if (buf) {
+      mesa_logi("GPU_USE_INDEX_BUFFER buffer=%p va=0x%016" PRIx64
+                " offset=0x%" PRIx64 " size=0x%" PRIx64
+                " buffer_size=0x%" PRIx64 " usage=0x%" PRIx64
+                " index_type=%u",
+                buf, panvk_buffer_gpu_ptr(buf, offset), offset,
+                panvk_buffer_range(buf, offset, size), buf->vk.size,
+                buf->vk.usage, indexType);
       cmdbuf->state.gfx.ib.size = panvk_buffer_range(buf, offset, size);
       assert(cmdbuf->state.gfx.ib.size <= UINT32_MAX);
       cmdbuf->state.gfx.ib.dev_addr = panvk_buffer_gpu_ptr(buf, offset);

@@ -14,6 +14,8 @@
 
 #include "pan_props.h"
 
+#include <stdio.h>
+
 #include "util/u_atomic.h"
 #include "vk_debug_utils.h"
 #include "vk_log.h"
@@ -208,10 +210,18 @@ panvk_AllocateMemory(VkDevice _device,
                     "failed to map VkMemory for dump or trace.\n");
       }
 
+      char map_name[32];
+      snprintf(map_name, sizeof(map_name), "vk_mem_%llx",
+               (unsigned long long)mem->addr.dev);
       pandecode_inject_mmap(device->debug.decode_ctx, mem->addr.dev,
                             mem->debug.host_mapping, pan_kmod_bo_size(mem->bo),
-                            NULL);
+                            map_name);
    }
+
+   mesa_logi("GPU_MEM_ALLOC mem=%p va=0x%016" PRIx64 " size=0x%" PRIx64
+             " type=%u flags=0x%x",
+             mem, mem->addr.dev, pan_kmod_bo_size(mem->bo),
+             pAllocateInfo->memoryTypeIndex, mem->vk.alloc_flags);
 
    panvk_memory_emit_report(device, mem, pAllocateInfo, VK_SUCCESS);
 
